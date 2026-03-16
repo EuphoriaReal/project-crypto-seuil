@@ -63,7 +63,7 @@ def register():
     except Exception as ex:
         return jsonify({"error": f"Clé publique invalide : {ex}"}), 400
 
-    # Enregistrement idempotent
+    # Enregistrement du client
     if client_id not in clients:
         index_i = next_index
         next_index += 1
@@ -130,7 +130,7 @@ def get_part():
 
 @app.route("/clients", methods=["GET"])
 def list_clients():
-    """Liste les clients enregistrés et leur index (sans données sensibles)."""
+    """Liste les clients enregistrés et leur index"""
     return jsonify({
         "clients": [
             {"client_id": cid, "part_index": info["part_index"]}

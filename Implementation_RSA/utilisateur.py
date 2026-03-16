@@ -192,14 +192,13 @@ def dechiffrer_avec_parts(chiffre, parts_recues, lambda_N, N):
 
 def menu():
     print(f"""
-┌─────────────────────────────────┐
-│  Que voulez-vous faire ?        │
-│  1. S'enregistrer               │
-│  2. Demander ma part            │
-│  3. Voir les participants       │
-│  4. Afficher ma part            │
-│  5. Quitter                     │
-└─────────────────────────────────┘""")
+   Que voulez-vous faire ?        
+   1. S'enregistrer               
+   2. Demander ma part            
+   3. Voir les participants       
+   4. Afficher ma part            
+   5. Quitter                     
+ """)
     return input("Choix : ").strip()
 
 
@@ -222,28 +221,23 @@ if __name__ == "__main__":
     # Boucle menu
     while True:
         choix = menu()
-
-        if choix == "1":
-            senregistrer(public_key_pem)
-
-        elif choix == "2":
-            if mon_index is None:
-                print(f"[{client_id}] Enregistrez-vous d'abord (option 1).")
-            else:
-                demander_ma_part(public_key_pem, private_key_client)
-
-        elif choix == "3":
-            lister_participants()
-
-        elif choix == "4":
-            if ma_part is None:
-                print(f"[{client_id}] Vous n'avez pas encore reçu de part.")
-            else:
-                print(f"[{client_id}] Ma part : f({mon_index}) = {ma_part}")
-
-        elif choix == "5":
-            print(f"[{client_id}] Au revoir.")
-            break
-
-        else:
-            print("Choix invalide.")
+        match choix:
+            case "1":
+                senregistrer(public_key_pem)
+            case "2":
+                if mon_index is None:
+                    print(f"[{client_id}] Enregistrez-vous d'abord (option 1).")
+                else:
+                    demander_ma_part(public_key_pem, private_key_client)
+            case "3":
+                    lister_participants()
+            case "4":
+                if ma_part is None:
+                    print(f"[{client_id}] Vous n'avez pas encore reçu de part.")
+                else:
+                    print(f"[{client_id}] Ma part : f({mon_index}) = {ma_part}")
+            case "5":
+                print(f"[{client_id}] Au revoir.")
+                break
+            case _:
+                print("Choix invalide.")
