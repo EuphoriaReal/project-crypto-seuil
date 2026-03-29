@@ -132,78 +132,139 @@ def lister_participants():
 
 
 # ===========================================
-# 4. RECONSTRUCTION LOCALE (OPTIONNEL)
+# 4. CHIFFREMENT
 # ===========================================
 
-def pgcd(a, b):
-    while b:
-        a, b = b, a % b
-    return a
+def chiffrer_message():
+    """Chiffre un message via le serveur (c = m^e mod N)."""
+    message = input("Entrez le message à chiffrer : ")
+    try:
+        resp = requests.post(
+            f"{SERVER_URL}/encrypt",
+            json={"message": message}
+        )
+        data = resp.json()
+        if resp.status_code != 200:
+            print(f"[{client_id}] Erreur : {data.get('error')}")
+            return None
 
-def inverse_mod(a, m):
-    return pow(a, -1, m)
+        print(f"[{client_id}] {data['message_info']}")
+        print(f"[{client_id}] Chiffré c = {data['ciphertext']}")
+        print(f"[{client_id}] Session ID : {data['session_id']}")
+        return data['session_id']
 
-def interpolation_lagrange(parts_recues, modulus):
-    """
-    Reconstruit le secret d à partir d'au moins t parts.
-    
-    parts_recues : liste de tuples (index_i, valeur_fi)
-    modulus      : lambda(N)
-    
-    Attention : cette fonction révèle d en clair localement.
-    En production, on ferait du déchiffrement distribué sans reconstruire d.
-    """
-    secret = 0
-    indices = [p[0] for p in parts_recues]
-
-    for i, (xi, yi) in enumerate(parts_recues):
-        # Calcul du coefficient de Lagrange λ_i
-        numerateur   = 1
-        denominateur = 1
-        for xj in indices:
-            if xj != xi:
-                numerateur   = (numerateur   * (-xj))      % modulus
-                denominateur = (denominateur * (xi - xj))  % modulus
-
-        lagrange_i = (numerateur * inverse_mod(denominateur, modulus)) % modulus
-        secret = (secret + yi * lagrange_i) % modulus
-
-    return secret
-
-
-def dechiffrer_avec_parts(chiffre, parts_recues, lambda_N, N):
-    """
-    Déchiffre un message RSA à partir des parts reçues.
-    Reconstruit d puis déchiffre.
-    
-    En production : chaque participant calculerait c^(d_i) mod N
-    et on combinerait les résultats sans jamais reconstruire d.
-    """
-    d_reconstruit = interpolation_lagrange(parts_recues, lambda_N)
-    print(f"[{client_id}] d reconstruit = {d_reconstruit}")
-    message_int = pow(chiffre, d_reconstruit, N)
-    message_bytes = message_int.to_bytes((message_int.bit_length() + 7) // 8, byteorder='big')
-    return message_bytes
+    except Exception as ex:
+        print(f"[{client_id}] Erreur chiffrement : {ex}")
+        return None
 
 
 # ===========================================
-# 5. MENU PRINCIPAL
+# 5. DÉCHIFFREMENT DISTRIBUÉ
+# ===========================================
+
+def soumettre_signature_partielle():
+    """
+    Calcule sigma_i = c^(d_i) mod N et l'envoie au serveur.
+    Ici on envoie directement notre part d_i (le serveur fait la combinaison).
+    """
+    if ma_part is None:
+        print(f"[{client_id}] Vous n'avez pas encore reçu de part. Faites l'option 2 d'abord.")
+        return
+
+    session_id = input("Entrez le session_id du message à déchiffrer : ").strip()
+
+    try:
+        resp = requests.post(
+            f"{SERVER_URL}/submit_partial_decrypt",
+            json={
+                "session_id": session_id,
+                "client_id": client_id,
+                "part_index": mon_index,
+                "partial_signature": str(ma_part)
+            }
+        )
+        data = resp.json()
+        if resp.status_code != 200:
+            print(f"[{client_id}] Erreur : {data.get('error')}")
+            return
+
+        print(f"[{client_id}] {data['message']}")
+        if data.get("ready"):
+            print(f"[{client_id}] Le seuil est atteint ! Vous pouvez lancer la combinaison (option 8).")
+
+    except Exception as ex:
+        print(f"[{client_id}] Erreur soumission : {ex}")
+
+
+def voir_statut_dechiffrement():
+    """Vérifie le statut d'une session de déchiffrement."""
+    session_id = input("Entrez le session_id : ").strip()
+    try:
+        resp = requests.get(f"{SERVER_URL}/decrypt_status", params={"session_id": session_id})
+        data = resp.json()
+        if resp.status_code != 200:
+            print(f"[{client_id}] Erreur : {data.get('error')}")
+            return
+
+        print(f"[{client_id}] Session {session_id} :")
+        print(f"   Chiffré : {data['ciphertext']}")
+        print(f"   Parts reçues : {data['parts_received']}/{data['threshold']}")
+        print(f"   Prêt : {'Oui' if data['ready'] else 'Non'}")
+        if data['result']:
+            print(f"   Résultat : {data['result']}")
+
+    except Exception as ex:
+        print(f"[{client_id}] Erreur : {ex}")
+
+
+def demander_combinaison():
+    """Demande au serveur de combiner les parts et déchiffrer le message."""
+    session_id = input("Entrez le session_id : ").strip()
+    try:
+        resp = requests.post(
+            f"{SERVER_URL}/combine",
+            json={"session_id": session_id}
+        )
+        data = resp.json()
+        if resp.status_code != 200:
+            print(f"[{client_id}] Erreur : {data.get('error')}")
+            return
+
+        print(f"\n[{client_id}] ============================")
+        print(f"[{client_id}]  MESSAGE DÉCHIFFRÉ : {data['message_dechiffre']}")
+        print(f"[{client_id}] ============================\n")
+
+    except Exception as ex:
+        print(f"[{client_id}] Erreur combinaison : {ex}")
+
+
+# ===========================================
+# 6. MENU PRINCIPAL
 # ===========================================
 
 def menu():
     print(f"""
-   Que voulez-vous faire ?        
-   1. S'enregistrer               
-   2. Demander ma part            
-   3. Voir les participants       
-   4. Afficher ma part            
-   5. Quitter                     
+   ╔══════════════════════════════════════╗
+   ║   Client RSA à Seuil : {client_id:<12s}║
+   ╠══════════════════════════════════════╣
+   ║  1. S'enregistrer                   ║
+   ║  2. Demander ma part                ║
+   ║  3. Voir les participants           ║
+   ║  4. Afficher ma part                ║
+   ║  ──────────────────────────────────  ║
+   ║  5. Chiffrer un message             ║
+   ║  6. Soumettre ma signature partielle║
+   ║  7. Statut du déchiffrement         ║
+   ║  8. Combiner et déchiffrer          ║
+   ║  ──────────────────────────────────  ║
+   ║  9. Quitter                         ║
+   ╚══════════════════════════════════════╝
  """)
     return input("Choix : ").strip()
 
 
 # ===========================================
-# 6. DÉMARRAGE
+# 7. DÉMARRAGE
 # ===========================================
 
 if __name__ == "__main__":
@@ -230,13 +291,21 @@ if __name__ == "__main__":
                 else:
                     demander_ma_part(public_key_pem, private_key_client)
             case "3":
-                    lister_participants()
+                lister_participants()
             case "4":
                 if ma_part is None:
                     print(f"[{client_id}] Vous n'avez pas encore reçu de part.")
                 else:
                     print(f"[{client_id}] Ma part : f({mon_index}) = {ma_part}")
             case "5":
+                chiffrer_message()
+            case "6":
+                soumettre_signature_partielle()
+            case "7":
+                voir_statut_dechiffrement()
+            case "8":
+                demander_combinaison()
+            case "9":
                 print(f"[{client_id}] Au revoir.")
                 break
             case _:
