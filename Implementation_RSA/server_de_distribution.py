@@ -149,6 +149,25 @@ def list_clients():
     })
 
 
+@app.route("/sessions", methods=["GET"])
+def list_sessions():
+    """Liste toutes les sessions de déchiffrement en cours avec leur statut."""
+    sessions = []
+    for sid, session in decrypt_sessions.items():
+        current = len(session["partials"])
+        sessions.append({
+            "session_id":    sid,
+            "parts_received": current,
+            "threshold":     T,
+            "ready":         current >= T,
+            "done":          session["result"] is not None,
+        })
+    return jsonify({
+        "sessions": sessions,
+        "total":    len(sessions)
+    })
+
+
 # ===========================================
 # ROUTES FLASK — CHIFFREMENT / DÉCHIFFREMENT
 # ===========================================
@@ -242,26 +261,6 @@ def submit_partial_decrypt():
         "ready": current >= T,
         "message": f"Part soumise ({current}/{T}). "
                    + ("Prêt pour la combinaison !" if current >= T else f"Encore {T - current} part(s) nécessaire(s).")
-    })
-
-
-@app.route("/decrypt_status", methods=["GET"])
-def decrypt_status():
-    """Vérifie le statut d'une session de déchiffrement."""
-    session_id = request.args.get("session_id")
-    if not session_id or session_id not in decrypt_sessions:
-        return jsonify({"error": "session_id invalide ou inconnu"}), 404
-
-    session = decrypt_sessions[session_id]
-    current = len(session["partials"])
-
-    return jsonify({
-        "session_id": session_id,
-        "ciphertext": str(session["ciphertext"]),
-        "parts_received": current,
-        "threshold": T,
-        "ready": current >= T,
-        "result": session["result"]
     })
 
 

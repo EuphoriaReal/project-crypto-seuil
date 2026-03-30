@@ -131,6 +131,29 @@ def lister_participants():
         print(f"[{client_id}] Erreur liste participants : {ex}")
 
 
+def lister_sessions():
+    """Affiche toutes les sessions de déchiffrement en cours sur le serveur."""
+    try:
+        resp = requests.get(f"{SERVER_URL}/sessions")
+        data = resp.json()
+        sessions = data.get("sessions", [])
+        if not sessions:
+            print(f"[{client_id}] Aucune session en cours.")
+            return
+        print(f"\n[{client_id}] Sessions de déchiffrement ({data['total']}) :")
+        for s in sessions:
+            if s["done"]:
+                statut = "déchiffré"
+            elif s["ready"]:
+                statut = "prêt à combiner"
+            else:
+                statut = f"en attente ({s['parts_received']}/{s['threshold']} parts)"
+            print(f"   - {s['session_id']}  →  {statut}")
+        print()
+    except Exception as ex:
+        print(f"[{client_id}] Erreur liste sessions : {ex}")
+
+
 # ===========================================
 # 4. CHIFFREMENT
 # ===========================================
@@ -196,27 +219,6 @@ def soumettre_signature_partielle():
         print(f"[{client_id}] Erreur soumission : {ex}")
 
 
-def voir_statut_dechiffrement():
-    """Vérifie le statut d'une session de déchiffrement."""
-    session_id = input("Entrez le session_id : ").strip()
-    try:
-        resp = requests.get(f"{SERVER_URL}/decrypt_status", params={"session_id": session_id})
-        data = resp.json()
-        if resp.status_code != 200:
-            print(f"[{client_id}] Erreur : {data.get('error')}")
-            return
-
-        print(f"[{client_id}] Session {session_id} :")
-        print(f"   Chiffré : {data['ciphertext']}")
-        print(f"   Parts reçues : {data['parts_received']}/{data['threshold']}")
-        print(f"   Prêt : {'Oui' if data['ready'] else 'Non'}")
-        if data['result']:
-            print(f"   Résultat : {data['result']}")
-
-    except Exception as ex:
-        print(f"[{client_id}] Erreur : {ex}")
-
-
 def demander_combinaison():
     """Demande au serveur de combiner les parts et déchiffrer le message."""
     session_id = input("Entrez le session_id : ").strip()
@@ -247,17 +249,18 @@ def menu():
    ╔══════════════════════════════════════╗
    ║   Client RSA à Seuil : {client_id:<12s}║
    ╠══════════════════════════════════════╣
-   ║  1. S'enregistrer                   ║
-   ║  2. Demander ma part                ║
-   ║  3. Voir les participants           ║
-   ║  4. Afficher ma part                ║
+   ║  1. S'enregistrer                    ║
+   ║  2. Demander ma part                 ║
+   ║  3. Voir les participants            ║
+   ║  4. Afficher ma part                 ║
    ║  ──────────────────────────────────  ║
-   ║  5. Chiffrer un message             ║
-   ║  6. Soumettre ma signature partielle║
-   ║  7. Statut du déchiffrement         ║
-   ║  8. Combiner et déchiffrer          ║
+   ║  5. Voir les sessions en cours       ║
    ║  ──────────────────────────────────  ║
-   ║  9. Quitter                         ║
+   ║  6. Chiffrer un message              ║
+   ║  7. Soumettre ma signature partielle ║
+   ║  8. Combiner et déchiffrer           ║
+   ║  ──────────────────────────────────  ║
+   ║  9. Quitter                          ║
    ╚══════════════════════════════════════╝
  """)
     return input("Choix : ").strip()
@@ -298,11 +301,11 @@ if __name__ == "__main__":
                 else:
                     print(f"[{client_id}] Ma part : f({mon_index}) = {ma_part}")
             case "5":
-                chiffrer_message()
+                lister_sessions()
             case "6":
-                soumettre_signature_partielle()
+                chiffrer_message()
             case "7":
-                voir_statut_dechiffrement()
+                soumettre_signature_partielle()
             case "8":
                 demander_combinaison()
             case "9":
